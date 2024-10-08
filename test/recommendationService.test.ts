@@ -27,7 +27,7 @@ describe("getRecommendations", () => {
     });
   });
 
-  it("should recommend products from the same category, excluding already purchased ones", async () => {
+  it("Recomendar produtos da mesma categoria, excluindo os já comprados", async () => {
     const productA = await prisma.product.findFirst({
       where: { name: "Produto 1" },
     });
@@ -40,22 +40,55 @@ describe("getRecommendations", () => {
       data: { customerId: 1, productId: productA.id },
     });
 
-    const recommendations = (await getRecommendations(1)) as Product[]; 
+    // serviço agora com paginação default (page 1, limit 10)
+    const recommendations = await getRecommendations(1, 1, 10);
 
-    if (!Array.isArray(recommendations)) {
-      throw new Error(
-        "Expected an array of recommendations, but received an error message."
-      );
-    }
+    // Verificar se a estrutura de resposta está correta
+    expect(recommendations).toHaveProperty("page", 1);
+    expect(recommendations).toHaveProperty("limit", 10);
+    expect(recommendations).toHaveProperty("data");
 
-    expect(recommendations.length).toBeGreaterThanOrEqual(5);
+    const recommendationData = recommendations.data as Product[];
 
-    expect(recommendations).not.toEqual(
+    // verificando se a quantidade de produtos recomendados é suficiente
+    expect(recommendationData.length).toBeGreaterThanOrEqual(5);
+
+    // verificando se o produto comprado não esteja nas recomendações
+    expect(recommendationData).not.toEqual(
       expect.arrayContaining([{ id: productA.id, name: "Produto 1" }])
     );
 
-    recommendations.forEach((product: Product) => {
+    // verificando se recomendações são da mesma categoria comprada
+    recommendationData.forEach((product: Product) => {
       expect(product.category).toBe("Category 1");
     });
+  });
+
+  it("paginar as recomendações", async () => {
+    const productB = await prisma.product.findFirst({
+      where: { name: "Produto 2" },
+    });
+
+    if (!productB) {
+      throw new Error("Product not found");
+    }
+
+    await prisma.purchase.create({
+      data: { customerId: 2, productId: productB.id },
+    });
+
+    const paginatedRecommendations = await getRecommendations(2, 1, 2);
+
+    expect(paginatedRecommendations).toHaveProperty("page", 1);
+    expect(paginatedRecommendations).toHaveProperty("limit", 2);
+    expect(paginatedRecommendations).toHaveProperty("data");
+
+    const paginatedData = paginatedRecommendations.data as Product[];
+
+    expect(paginatedData.length).toBe(2);
+
+    expect(paginatedData).not.toEqual(
+      expect.arrayContaining([{ id: productB.id, name: "Produto 2" }])
+    );
   });
 });
