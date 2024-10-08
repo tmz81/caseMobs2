@@ -1,7 +1,11 @@
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
-export const getRecommendations = async (customerId: number) => {
+export const getRecommendations = async (
+  customerId: number,
+  page: number = 1,
+  limit: number = 10
+) => {
   try {
     const purchases = await prisma.purchase.findMany({
       where: { customerId },
@@ -27,11 +31,17 @@ export const getRecommendations = async (customerId: number) => {
         category: { in: purchasedCategories },
         id: { notIn: purchases.map((purchase) => purchase.productId) },
       },
+      skip: (page - 1) * limit,
+      take: limit,
     });
 
     console.log("Produtos recomendados:", recommendations);
 
-    return recommendations;
+    return {
+      page,
+      limit,
+      data: recommendations,
+    };
   } catch (error) {
     console.error("Erro ao buscar recomendações:", error);
     throw new Error("Não é possível buscar recomendações neste momento.");
